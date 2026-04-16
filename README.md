@@ -99,6 +99,8 @@ ansible_ssh_private_key_file=~/.ssh/ansible
 
 ## Variables globales
 
+Pensez à changer deb-server-2 pour l'IP ou le nom d'hôte de votre serveur Ansible.
+
 Fichier : `group_vars/linux_clients.yml`
 
 ```yaml
