@@ -125,7 +125,7 @@ roles_path = ./roles
 ## Test de connectivité
 
 ```bash
-ansible linux_clients -m ping --become
+ansible linux_clients -i inventory/production.ini -m ping
 ```
 
 ---
@@ -133,7 +133,7 @@ ansible linux_clients -m ping --become
 ## Lancer le déploiement
 
 ```bash
-ansible-playbook playbooks/deploy-glpi-agent.yml
+ansible-playbook -i inventory/production.ini playbooks/deploy-glpi-agent.yml
 ```
 
 ---
