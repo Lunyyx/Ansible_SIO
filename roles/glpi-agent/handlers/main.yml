@@ -1,0 +1,4 @@
+- name: Restart GLPI agent
+  systemd:
+    name: glpi-agent
+    state: restarted

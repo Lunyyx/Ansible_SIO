@@ -1,0 +1,13 @@
+server = {{ glpi_server }}
+
+{% if not glpi_verify_ssl %}
+no-ssl-check = 1
+{% endif %}
+
+{% if glpi_tag is defined %}
+tag = {{ glpi_tag }}
+{% endif %}
+
+{% if glpi_delay is defined %}
+delaytime = {{ glpi_delay }}
+{% endif %}

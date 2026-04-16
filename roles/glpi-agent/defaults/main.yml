@@ -1,0 +1,5 @@
+glpi_server: "http://deb-server-2/front/inventory.php"
+glpi_verify_ssl: false
+glpi_agent_package_url: ""
+glpi_delay: 3600
+glpi_tag: "Ansible"

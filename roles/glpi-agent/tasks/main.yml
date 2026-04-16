@@ -1,0 +1,65 @@
+- name: Ensure dependencies are installed
+  apt:
+    name:
+      - curl
+      - perl
+    state: present
+    update_cache: yes
+
+- name: Get latest GLPI agent URL
+  shell: |
+    curl -s https://api.github.com/repos/glpi-project/glpi-agent/releases/latest \
+    | grep browser_download_url \
+    | grep linux-installer.pl \
+    | grep -v snap \
+    | head -n 1 \
+    | cut -d '"' -f 4
+  register: glpi_url
+  changed_when: false
+  when: glpi_agent_package_url == ""
+
+- name: Set GLPI download URL
+  set_fact:
+    glpi_download_url: "{{ glpi_agent_package_url if glpi_agent_package_url != '' else glpi_url.stdout }}"
+
+- name: Download GLPI agent installer
+  get_url:
+    url: "{{ glpi_download_url }}"
+    dest: /tmp/glpi-agent-installer.pl
+    mode: '0755'
+
+- name: Install GLPI agent
+  command: perl /tmp/glpi-agent-installer.pl --server {{ glpi_server }}
+  args:
+    creates: /usr/bin/glpi-agent
+
+- name: Ensure config directory exists
+  file:
+    path: /etc/glpi-agent
+    state: directory
+    mode: '0755'
+
+- name: Deploy GLPI agent configuration
+  template:
+    src: agent.cfg.j2
+    dest: /etc/glpi-agent/agent.cfg
+    mode: '0644'
+  notify: Restart GLPI agent
+
+- name: Enable and start GLPI agent
+  systemd:
+    name: glpi-agent
+    enabled: yes
+    state: started
+
+- name: Check GLPI agent status
+  command: systemctl is-active glpi-agent
+  register: glpi_status
+  changed_when: false
+
+- name: Force GLPI inventory
+  command: glpi-agent --server {{ glpi_server }}
+
+- name: Show GLPI agent status
+  debug:
+    msg: "GLPI agent status: {{ glpi_status.stdout }}"

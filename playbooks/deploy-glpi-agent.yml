@@ -1,0 +1,6 @@
+- name: Deploy GLPI Agent on Linux
+  hosts: linux_clients
+  become: yes
+
+  roles:
+    - glpi-agent
