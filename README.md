@@ -1,322 +1,67 @@
-# Déploiement GLPI Agent avec Ansible
+# Déploiement Automatisé de l'Agent GLPI avec Ansible
 
-Ce projet permet de déployer automatiquement l'agent GLPI sur plusieurs serveurs Linux via Ansible.
+## Présentation
+Ce projet Ansible automatise l'installation, la configuration et le déploiement de l'agent GLPI sur des clients Linux (distributions basées sur Debian/Ubuntu). Il intègre la gestion complète du cycle de vie de l'agent, depuis la préparation des accès système jusqu'à l'envoi du premier inventaire.
 
----
+## Architecture du Projet
+Le projet est structuré selon les standards Ansible pour garantir une maintenance simplifiée :
 
-# Architecture
+- **group_vars/linux_clients.yml** : Variables globales pour le groupe de clients.
+- **inventory/production.ini** : Définition des hôtes cibles et des paramètres de connexion.
+- **roles/glpi-agent/** : Rôle contenant la logique d'installation, les templates de configuration et les gestionnaires de services.
+- **playbooks/deploy-glpi-agent.yml** : Playbook principal orchestrant le déploiement.
 
-Voici un exemple d'architecture :
+## Gestion des Accès et Sécurité
 
-* Serveur Ansible : `DEB-ANSIBLE-1`
-* Serveur GLPI : `deb-server-2`
-* Machines cibles :
+### Création des Utilisateurs
+Le projet automatise la création des comptes utilisateurs sur les serveurs de destination. Il s'assure que l'utilisateur configuré (par défaut `ansible`) possède les droits nécessaires pour l'administration du système via sudo.
 
-  * deb-server-1
-  * deb-server-2
-  * deb-web-1
-  * deb-web-2
+### Configuration SSH
+La sécurité des communications est assurée par :
+1. La génération d'une paire de clés SSH (si inexistante).
+2. Le déploiement de la clé publique sur les serveurs cibles dans le fichier `authorized_keys`.
+3. L'utilisation de ces clés pour les connexions automatisées sans mot de passe.
 
----
+## Configuration du Serveur GLPI
 
-# Configuration du serveur GLPI (deb-server-2)
+Conformément aux exigences du projet, l'adresse du serveur GLPI doit être configurée de manière cohérente à deux emplacements distincts pour assurer la redondance et la priorité des variables :
 
-Le serveur `deb-server-2` héberge GLPI et doit être accessible par les agents.
+1. **Priorité haute** : Dans `/opt/ansible/group_vars/linux_clients.yml`.
+2. **Valeur par défaut** : Dans `/opt/ansible/roles/glpi-agent/defaults/main.yml`.
 
-## Vérification de l'accès à GLPI
+Assurez-vous que la variable `glpi_server` pointe vers votre point de terminaison d'inventaire (ex: `http://votre-serveur/front/inventory.php`).
 
-Depuis le serveur Ansible ou une machine cliente :
+## Variables Principales
 
-```bash
-curl http://deb-server-2/front/inventory.php
-```
+| Variable | Description |
+| :--- | :--- |
+| `glpi_server` | URL de destination pour les inventaires GLPI. |
+| `glpi_verify_ssl` | Désactivation de la vérification SSL (utile pour les certificats auto-signés). |
+| `glpi_agent_version` | Version de l'agent à installer (par défaut `latest`). |
+| `ansible_user` | Utilisateur système utilisé pour le déploiement. |
+| `ansible_ssh_private_key_file` | Chemin vers la clé privée SSH sur le nœud de contrôle. |
 
-Une réponse HTTP doit être retournée.
+## Instructions d'Utilisation
 
----
+### Prérequis
+- Ansible installé sur la machine de contrôle.
+- Accès réseau vers les clients sur le port 22 (SSH).
 
-## Vérification du service web
-
-Sur `deb-server-2` :
-
-```bash
-sudo systemctl status apache2
-```
-
-ou :
-
-```bash
-sudo systemctl status nginx
-```
-
-Le service doit être actif.
-
----
-
-## Vérification du pare-feu
-
-S'assurer que les ports HTTP/HTTPS sont accessibles :
-
-```bash
-sudo ufw allow 80
-sudo ufw allow 443
-```
-
-Vérifier également les règles de filtrage réseau (pare-feu, VLAN, etc.).
-
----
-
-## Vérification de l'URL GLPI
-
-Dans le fichier :
-
-```
-group_vars/linux_clients.yml
-```
-
-```yaml
-glpi_server: "http://deb-server-2/front/inventory.php"
-glpi_verify_ssl: false
-glpi_agent_version: "latest"
-```
-
-Adapter si nécessaire :
-
-* utiliser une adresse IP
-* utiliser HTTPS si configuré
-
----
-
-## Test depuis une machine cible
-
-```bash
-curl http://deb-server-2/front/inventory.php
-```
-
-Si la requête échoue, vérifier :
-
-* la résolution DNS
-* la connectivité réseau
-* l'état du service web
-
----
-
-# Préparation de l'accès SSH
-
-## Génération de la clé SSH
-
-Sur le serveur Ansible :
-
-```bash
-ssh-keygen -t ed25519 -f ~/.ssh/ansible -C "ansible@server"
-```
-
----
-
-## Création de l'utilisateur distant
-
-Sur chaque machine cible :
-
-```bash
-sudo adduser ansible
-sudo usermod -aG sudo ansible
-```
-
----
-
-## Configuration du sudo sans mot de passe
-
-```bash
-sudo visudo
-```
-
-Ajouter la ligne suivante :
-
-```
-ansible ALL=(ALL) NOPASSWD:ALL
-```
-
----
-
-## Déploiement de la clé publique
-
-Depuis le serveur Ansible :
-
-```bash
-ssh-copy-id -i ~/.ssh/ansible.pub ansible@deb-server-1
-ssh-copy-id -i ~/.ssh/ansible.pub ansible@deb-server-2
-ssh-copy-id -i ~/.ssh/ansible.pub ansible@deb-web-1
-ssh-copy-id -i ~/.ssh/ansible.pub ansible@deb-web-2
-```
-
----
-
-## Test de connexion SSH
-
-```bash
-ssh ansible@deb-server-1
-```
-
-La connexion doit s'effectuer sans demande de mot de passe.
-
----
-
-# Configuration Ansible
-
-## Inventory
-
-Fichier : `inventory/production.ini`
-
-```ini
-[linux_clients]
-deb-server-1
-deb-server-2
-deb-web-1
-deb-web-2
-
-[linux_clients:vars]
-ansible_user=ansible
-ansible_ssh_private_key_file=~/.ssh/ansible
-```
-
----
-
-## Configuration globale
-
-Fichier : `ansible.cfg`
-
-```ini
-[defaults]
-roles_path = ./roles
-```
-
----
-
-# Déploiement
-
-## Test de connectivité
-
-```bash
-ansible linux_clients -i inventory/production.ini -m ping
-```
-
----
-
-## Exécution du playbook
+### Exécution
+Pour lancer le déploiement complet, exécutez la commande suivante depuis la racine du projet :
 
 ```bash
 ansible-playbook -i inventory/production.ini playbooks/deploy-glpi-agent.yml
 ```
 
----
+### Étapes automatisées
+1. **Provisionnement** : Création de l'utilisateur et déploiement des clés SSH.
+2. **Installation des dépendances** : Installation de `curl` et `perl`.
+3. **Récupération** : Identification et téléchargement de la dernière version de l'agent depuis GitHub.
+4. **Configuration** : Génération du fichier `/etc/glpi-agent/agent.cfg` via template J2.
+5. **Initialisation** : Activation du service système et déclenchement d'un inventaire immédiat.
 
-# Fonctionnement du rôle
-
-Le rôle `glpi-agent` effectue les actions suivantes :
-
-1. Installation des dépendances (`curl`, `perl`)
-2. Récupération de la dernière version du GLPI Agent
-3. Téléchargement de l'installateur
-4. Installation de l'agent
-5. Déploiement du fichier de configuration
-6. Activation et démarrage du service
-7. Envoi d'un inventaire initial
-
----
-
-# Configuration GLPI Agent
-
-Template : `roles/glpi-agent/templates/agent.cfg.j2`
-
-Paramètres principaux :
-
-* `server` : URL du serveur GLPI
-* `no-ssl-check` : désactivation de la vérification SSL
-* `tag` : identification de l'agent
-* `delaytime` : fréquence d'exécution
-
----
-
-# Dépannage
-
-## Problème SSH
-
-```bash
-ssh -i ~/.ssh/ansible ansible@deb-server-1
-```
-
----
-
-## Problème Ansible
-
-```bash
-ansible linux_clients -m ping --become -vvv
-```
-
----
-
-## Service GLPI Agent
-
-```bash
-systemctl status glpi-agent
-```
-
----
-
-## Téléchargement du package
-
-```bash
-curl https://api.github.com/repos/glpi-project/glpi-agent/releases/latest
-```
-
----
-
-# Sécurisation (optionnel)
-
-Sur les machines cibles :
-
-```bash
-sudo nano /etc/ssh/sshd_config
-```
-
-Modifier les paramètres suivants :
-
-```
-PasswordAuthentication no
-PermitRootLogin no
-```
-
-Redémarrer le service SSH :
-
-```bash
-sudo systemctl restart ssh
-```
-
----
-
-# Structure du projet
-
-```
-/opt/ansible
-├── ansible.cfg
-├── group_vars/
-├── inventory/
-├── playbooks/
-└── roles/
-```
-
----
-
-# Résumé
-
-* Accès SSH sécurisé par clé
-* Utilisateur dédié `ansible`
-* Déploiement automatisé du GLPI Agent
-* Serveur GLPI centralisé (`deb-server-2`)
-* Configuration centralisée via Ansible
-
----
-
-# Objectif
-
-Automatiser l'installation et la configuration du GLPI Agent sur un parc de serveurs Linux de manière fiable et reproductible.
+## Maintenance
+- **Statut du service** : `systemctl status glpi-agent`
+- **Logs de l'agent** : `/var/log/glpi-agent/glpi-agent.log`
+- **Forcer un inventaire** : `glpi-agent --server http://votre-serveur/front/inventory.php`
